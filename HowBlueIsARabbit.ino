@@ -4,6 +4,9 @@
 #include <WiFiManager.h>         //https://github.com/tzapu/WiFiManager
 #include <ArduinoOTA.h>
 
+#include <EthernetUdp.h>
+#include <ArduinoJson.h>          //https://github.com/bblanchon/ArduinoJson
+
 // http://www.wemos.cc/Products/d1_mini.html
 
 // D4 == GPIO2 -- has build in LED.
@@ -16,6 +19,20 @@
 #endif
 
 #define NAME "LapinAzzuro"
+
+// Just for testing - take any UDP packet on port 9133 - and
+// if the json in the payload has a '{ "Blue": 0.5 }' then
+// idisplay it.
+//
+// echo '{"lapinBlueColourness":0.2}' | nc -u <IP address> 9133
+// or depending on your network setup - you can use the broadcast
+// address of your network or the generic one.
+//
+// echo '{"lapinBlueColourness":0.2}' | nc -u 255.255.255.255 9133
+WiFiUDP udp;
+
+const unsigned short UDPPORT = 9133;
+WiFiUDP Udp;
 
 void setup() {
   pinMode(LED, OUTPUT);
@@ -57,6 +74,10 @@ void setup() {
   Serial.print("OTA IP address: ");
   Serial.println(WiFi.localIP());
   digitalWrite(LED, 0);
+
+  Serial.print("Starting to listen on UDP port ");
+  Serial.println(UDPPORT);
+  Udp.begin(UDPPORT);
 }
 
 void configMeter() {
@@ -78,9 +99,38 @@ void setMeter(float f) {
   Serial.print("Meter set to "); Serial.print(dial); Serial.print(" ("); Serial.print(f); Serial.println(")");
 }
 
+void parseMeter() {
+  char packetBuffer[1500];
+  size_t len = Udp.read(packetBuffer, sizeof(packetBuffer));
+
+  if (len <= 0) {
+    Serial.println("UDP receive failed. Ignored.");
+    return;
+  };
+
+  packetBuffer[len] = '\0';
+  Serial.println("Got UDP: " + (String)packetBuffer);
+
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& json = jsonBuffer.parseObject(packetBuffer);
+
+  if (!json.success()) {
+    Serial.println("JSON decode failed. Ignored.");
+    return;
+  };
+
+  // echo '{"lapinBlueColourness":0.5}' | nc -u <ipaddress> 9133
+  const char * val = json["lapinBlueColourness"];
+  if (!val) {
+    Serial.println("No information about blue coloured rabbits. Ignored.");
+    return;
+  };
+  setMeter(atof(val));
+}
+
 void loop() {
   ArduinoOTA.handle();
-  int d = millis() / 5000;
-  d = d % 2;
-  setMeter(d);
+
+  if (Udp.parsePacket())
+    parseMeter();
 }
