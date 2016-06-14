@@ -12,7 +12,7 @@
 #include <ArduinoJson.h>          //https://github.com/bblanchon/ArduinoJson
 
 // Only wehen controlling a servo.
-///#include <Servo.h>
+#include <Servo.h>
 
 // http://www.wemos.cc/Products/d1_mini.html
 // http://www.wemos.cc/Products/d1.html
@@ -25,11 +25,11 @@
 // #define PIN 13 // For meter sent to Libby
 // #define SERVO 5 // For meter in living room
 
-///#define SERVO1 5 // for max meter left
-///#define SERVO2 4 // for max meter right
+#define SERVO1 5 // for max meter left D1
+#define SERVO2 4 // for max meter right D2
 
 #ifndef LED
-#define LED 2
+#define LED 2 //D4
 #endif
 
 #define NAME "LapinAzzuro"
@@ -48,8 +48,8 @@ const unsigned short HTTPPORT = 80;
 WiFiClientSecure clientTFL;
 WiFiClient clientMET;
 
-//int repeat = 30000; // 30 secs repeat for testing
-int repeat = 30 * 1000; // 5 mins is more reasonable for real life. or less
+int repeat = 30 * 1000; // 30 secs repeat for testing
+//int repeat = 5 * 60 * 1000; //5 mins is more reasonable for real life. or less
 
 //callback notifying us of the need to save config
 bool shouldSaveConfig = false;
@@ -255,6 +255,16 @@ int getTFL() {
   Serial.print("duration ");
   Serial.println(dur);
 
+  float prop =  0.0;
+  if(dur > 17){
+        Serial.println("Disruption");
+        prop = 0.33;
+  }else {
+        Serial.println("NO Disruption");
+        prop = 0.67;
+  }
+  setMeter2(prop);
+
   Serial.println();
   Serial.println("closing connection");
   return 1;
@@ -301,7 +311,7 @@ int getMET() {
   }
 
   String json;
-  boolean body = false;
+  bool body = false;
 
   // Read all the lines of the reply from server and print them to Serial
   while (clientMET.available()) {
@@ -335,9 +345,38 @@ int getMET() {
     String preciptiation = root["SiteRep"]["DV"]["Location"]["Period"][0]["Rep"][0]["PPd"];
     Serial.println("feels like " + feels_like);
     Serial.println("rain : " + preciptiation);
+    bool cold = NULL;
+    bool rain = NULL;
+    if(feels_like.toInt() < 10){
+      cold = true;
+    }else{
+      cold = false;
+    }
+    Serial.print("is it cold? ");
+    Serial.println(cold);
+    if(preciptiation.toInt() > 30){
+       rain = true;
+    }else{
+      rain = false;
+    }
+    Serial.print("is it going to rain? ");
+    Serial.println(rain);
+    // prop is proportion of the 180 degree possibility
+    // this one is discrete
+    float prop =  0.0;
+    if(rain && cold){
+      prop = 0.16;
+    }else if(!rain && cold){
+      prop = 0.33;
+    }else if(rain && !cold){
+      prop = 0.66;
+    }else if(!rain && !cold){
+      prop = 0.82;
+    }
+
+    setMeter1(prop);//left
 
   }
-
   Serial.println();
   Serial.println("closing connection");
   return 1;
