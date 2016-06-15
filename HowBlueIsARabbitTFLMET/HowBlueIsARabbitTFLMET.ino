@@ -25,12 +25,14 @@
 // #define PIN 13 // For meter sent to Libby
 // #define SERVO 5 // For meter in living room
 
+// Libby mockup
 #define SERVO1 5 // for max meter left D1
 #define SERVO2 4 // for max meter right D2
 
-#ifndef LED
-#define LED 2 //D4
-#endif
+// Meter as currently wired on the wooden
+// pedestal
+// #define SERVO1 2 // for max meter left D4
+// #define SERVO2 0 // for max meter right D3
 
 #define NAME "LapinAzzuro"
 
@@ -60,12 +62,20 @@ void saveConfigCallback () {
 
 
 void setup() {
-  pinMode(LED, OUTPUT);
-  digitalWrite(LED, 1);
   configMeter();
 
   Serial.begin(115200);
   Serial.println("\n\n\n" NAME " Started build " __FILE__ " / " __DATE__ " / " __TIME__);
+
+
+  setMeter(0.5);
+  delay(2000);
+  setMeter(0);
+  delay(2000);
+  setMeter(1);
+  delay(2000);
+  setMeter(0.5);
+
 
   //clean FS, for testing
   //SPIFFS.format();
@@ -196,8 +206,6 @@ void setup() {
 
   Serial.print("OTA IP address : ");
   Serial.println(WiFi.localIP());
-  digitalWrite(LED, 0);
-
 }
 
 int getTFL() {
@@ -383,13 +391,13 @@ int getMET() {
 
 }
 
-#if SERVO
+#ifdef SERVO
 Servo servo;
 #endif
-#if SERVO1
+#ifdef SERVO1
 Servo servo1;
 #endif
-#if SERVO2
+#ifdef SERVO2
 Servo servo2;
 #endif
 
@@ -400,13 +408,7 @@ void configMeter() {
 #if SERVO
   servo.attach(SERVO);
 #endif
-#if SERVO1
-  servo1.attach(SERVO1);
-#endif
-#if SERVO2
-  servo2.attach(SERVO2);
-#endif
-  setMeter(0);
+  setMeter(0.5);
 }
 
 void setMeter(float f) {
@@ -434,7 +436,7 @@ void setMeter(float f) {
   setMeter1(f);
 #endif
 #ifdef SERVO2
-  setMeter2(1 - f);
+  setMeter2(f);
 #endif
 }
 
@@ -442,9 +444,11 @@ void setMeter(float f) {
 void setMeter1(float f) {
   if (f < 0) f = 0.;
   if (f > 1.) f = 1.;
-  const int MIN = 78;     // Angle 0 .. 180
+  const int MIN = 78     // Angle 0 .. 180
   const int MAX = 160;
   unsigned dial = f * (MAX - MIN) + MIN;
+  if (!servo1.attached())
+  	servo1.attach(SERVO1);
   servo1.write(dial);
   Serial.print("Left Servo set to "); Serial.print(dial); Serial.print(" ("); Serial.print(f); Serial.println(")");
 }
@@ -457,6 +461,8 @@ void setMeter2(float f) {
   const int MIN = 27;     // Angle 0 .. 180
   const int MAX = 115;
   unsigned dial = f * (MAX - MIN) + MIN;
+  if (!servo2.attached())
+  	servo2.attach(SERVO2);
   servo2.write(dial);
   Serial.print("Right Servo set to "); Serial.print(dial); Serial.print(" ("); Serial.print(f); Serial.println(")");
 }
@@ -471,18 +477,27 @@ unsigned long last_attempt_tfl = 0;
 void loop() {
   ArduinoOTA.handle();
 
-  if (millis() - last_attempt_tfl > repeat) {
+  if (millis() - last_attempt_tfl > repeat || last_attempt_tfl == 0) {
     int successTFL = getTFL();
     Serial.print("TFL ");
     Serial.println(successTFL);
     last_attempt_tfl = millis();
   };
-  if (millis() - last_attempt_met > repeat) {
+  if (millis() - last_attempt_met > repeat || last_attempt_met == 0) {
     int successMET = getMET();
     Serial.print("MET ");
     Serial.println(successMET);
     last_attempt_met = millis();
   };
+
+#ifdef SERVO1
+  if (servo1.attached() && millis() - last_attempt_met > 2000)
+	servo1.detatch();
+#endif
+#ifdef SERVO2
+  if (servo2.attached() && millis() - last_attempt_met > 2000)
+	servo2.detatch();
+#endif
 
 #if 0
   setMeter(i / 100.);
