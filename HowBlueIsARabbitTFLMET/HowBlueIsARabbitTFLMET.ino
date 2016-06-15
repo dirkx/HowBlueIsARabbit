@@ -60,23 +60,19 @@ void saveConfigCallback () {
   shouldSaveConfig = true;
 }
 
+void configMeter();
+void setMeter(float f);
+void setMeter1(float f);
+void setMeter2(float f);
+String find_text(String needle, String haystack);
 
 void setup() {
-  configMeter();
-
   Serial.begin(115200);
   Serial.println("\n\n\n" NAME " Started build " __FILE__ " / " __DATE__ " / " __TIME__);
-
-
-  setMeter(0.5);
-  delay(2000);
-  setMeter(0);
-  delay(2000);
-  setMeter(1);
-  delay(2000);
-  setMeter(0.5);
-
-
+  configMeter();
+  setMeter1(0);
+  setMeter2(0);
+  
   //clean FS, for testing
   //SPIFFS.format();
 
@@ -264,12 +260,12 @@ int getTFL() {
   Serial.println(dur);
 
   float prop =  0.0;
-  if(dur > 17){
-        Serial.println("Disruption");
-        prop = 0.33;
-  }else {
-        Serial.println("NO Disruption");
-        prop = 0.67;
+  if (dur > 17) {
+    Serial.println("Disruption");
+    prop = 0.33;
+  } else {
+    Serial.println("NO Disruption");
+    prop = 0.67;
   }
   setMeter2(prop);
 
@@ -355,16 +351,16 @@ int getMET() {
     Serial.println("rain : " + preciptiation);
     bool cold = NULL;
     bool rain = NULL;
-    if(feels_like.toInt() < 10){
+    if (feels_like.toInt() < 10) {
       cold = true;
-    }else{
+    } else {
       cold = false;
     }
     Serial.print("is it cold? ");
     Serial.println(cold);
-    if(preciptiation.toInt() > 30){
-       rain = true;
-    }else{
+    if (preciptiation.toInt() > 30) {
+      rain = true;
+    } else {
       rain = false;
     }
     Serial.print("is it going to rain? ");
@@ -372,13 +368,13 @@ int getMET() {
     // prop is proportion of the 180 degree possibility
     // this one is discrete
     float prop =  0.0;
-    if(rain && cold){
+    if (rain && cold) {
       prop = 0.16;
-    }else if(!rain && cold){
+    } else if (!rain && cold) {
       prop = 0.33;
-    }else if(rain && !cold){
+    } else if (rain && !cold) {
       prop = 0.66;
-    }else if(!rain && !cold){
+    } else if (!rain && !cold) {
       prop = 0.82;
     }
 
@@ -394,9 +390,11 @@ int getMET() {
 #ifdef SERVO
 Servo servo;
 #endif
+
 #ifdef SERVO1
 Servo servo1;
 #endif
+
 #ifdef SERVO2
 Servo servo2;
 #endif
@@ -444,11 +442,12 @@ void setMeter(float f) {
 void setMeter1(float f) {
   if (f < 0) f = 0.;
   if (f > 1.) f = 1.;
-  const int MIN = 78     // Angle 0 .. 180
-  const int MAX = 160;
+//  const int MIN = 78;     // Angle 0 .. 180
+  const int MIN = 76;     // Angle 0 .. 180
+  const int MAX = 130;
   unsigned dial = f * (MAX - MIN) + MIN;
   if (!servo1.attached())
-  	servo1.attach(SERVO1);
+    servo1.attach(SERVO1);
   servo1.write(dial);
   Serial.print("Left Servo set to "); Serial.print(dial); Serial.print(" ("); Serial.print(f); Serial.println(")");
 }
@@ -462,7 +461,7 @@ void setMeter2(float f) {
   const int MAX = 115;
   unsigned dial = f * (MAX - MIN) + MIN;
   if (!servo2.attached())
-  	servo2.attach(SERVO2);
+    servo2.attach(SERVO2);
   servo2.write(dial);
   Serial.print("Right Servo set to "); Serial.print(dial); Serial.print(" ("); Serial.print(f); Serial.println(")");
 }
@@ -492,11 +491,11 @@ void loop() {
 
 #ifdef SERVO1
   if (servo1.attached() && millis() - last_attempt_met > 2000)
-	servo1.detatch();
+    servo1.detach();
 #endif
 #ifdef SERVO2
   if (servo2.attached() && millis() - last_attempt_met > 2000)
-	servo2.detatch();
+    servo2.detach();
 #endif
 
 #if 0
