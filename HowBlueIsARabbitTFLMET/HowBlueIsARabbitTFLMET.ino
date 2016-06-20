@@ -25,12 +25,11 @@
 // #define PIN 13 // For meter sent to Libby
 // #define SERVO 5 // For meter in living room
 
-#define SERVO1 4 // for max meter left D1 // weather
-#define SERVO2 5 // for max meter right D2 // travel
+// #define SERVO1 5 // for max meter left D1
+// #define SERVO2 4 // for max meter right D2
 
-#ifndef LED
-#define LED 2 //D4
-#endif
+#define SERVO1 2 // for max meter left D4 -- Labelled Volt with a yellow Ba marking on the back
+#define SERVO2 0 // for max meter right D3 -- Labelled Ampere with Ca on the back
 
 #define NAME "LapinAzzuro"
 
@@ -48,7 +47,12 @@ const unsigned short HTTPPORT = 80;
 WiFiClientSecure clientTFL;
 WiFiClient clientMET;
 
-int repeat = 30 * 1000; // 30 secs repeat for testing
+const unsigned long  startup_repeat = 30  * 1000; // every 30 seconds
+const unsigned long  slow_repeat = 15 * 60 * 1000; // every 15 minutes
+const unsigned long  servo_timout = 3 * 1000; // 2 second power safe on the servo's.
+
+unsigned long repeat = startup_repeat; // starrt fast.
+
 //int repeat = 5 * 60 * 1000; //5 mins is more reasonable for real life. or less
 
 //callback notifying us of the need to save config
@@ -58,38 +62,31 @@ void saveConfigCallback () {
   shouldSaveConfig = true;
 }
 
-
 void setup() {
-  pinMode(LED, OUTPUT);
-  digitalWrite(LED, 1);
   configMeter();
+  setMeter(0.5);
 
   Serial.begin(115200);
   Serial.println("\n\n\n" NAME " Started build " __FILE__ " / " __DATE__ " / " __TIME__);
-
-// initial callibration
-
-  setMeter1(0);
-  delay(1000);
-  setMeter1(0.4);
-  delay(1000);
-  setMeter1(0.7);
-  delay(1000);
-  setMeter1(1);
-  delay(1000);
-  setMeter1(0.5);
-  delay(2000);
-
-
-  setMeter2(0.2);
-  delay(1000);
-  setMeter2(0.9);
-  delay(1000);
-  setMeter2(0.5);
-  delay(2000);
-
+  
   //clean FS, for testing
   //SPIFFS.format();
+
+#ifdef CALIBRATE
+  Serial.println("Start calibration loop (20 times x 15 seconds)");
+  for(int i = 0; i < 20; i++) {
+    Serial.println("Moving meters to '0' and pausing 5 seconds");
+    setMeter1(0); setMeter2(0);
+    delay(5000);
+    Serial.println("Moving meters to '0.5' and pausing 5 seconds");
+    setMeter1(0.5); setMeter2(0.5);
+    delay(5000);
+    Serial.println("Moving meters to '1' and pausing 5 seconds");
+    setMeter1(1); setMeter2(1);
+    delay(5000);    
+  }
+  Serial.println("Send calibration loop");
+#endif
 
   //read configuration from FS json
   if (!SPIFFS.begin()) {
@@ -217,8 +214,6 @@ void setup() {
 
   Serial.print("OTA IP address : ");
   Serial.println(WiFi.localIP());
-  digitalWrite(LED, 0);
-
 }
 
 int getTFL() {
@@ -279,10 +274,10 @@ int getTFL() {
   float prop =  0.0;
   if(dur > 17){
         Serial.println("Disruption");
-        prop = 0.9;
+        prop = 0.33;
   }else {
         Serial.println("NO Disruption");
-        prop = 0.2;
+        prop = 0.67;
   }
   setMeter2(prop);
 
@@ -386,13 +381,13 @@ int getMET() {
     // this one is discrete
     float prop =  0.0;
     if(rain && cold){
-      prop = 0;
+      prop = 0.16;
     }else if(!rain && cold){
-      prop = 0.4;
+      prop = 0.33;
     }else if(rain && !cold){
-      prop = 0.7;
+      prop = 0.66;
     }else if(!rain && !cold){
-      prop = 1;
+      prop = 0.82;
     }
 
     setMeter1(prop);//left
@@ -404,13 +399,13 @@ int getMET() {
 
 }
 
-#if SERVO
+#ifdef SERVO
 Servo servo;
 #endif
-#if SERVO1
+#ifdef SERVO1
 Servo servo1;
 #endif
-#if SERVO2
+#ifdef SERVO2
 Servo servo2;
 #endif
 
@@ -421,13 +416,7 @@ void configMeter() {
 #if SERVO
   servo.attach(SERVO);
 #endif
-#if SERVO1
-  servo1.attach(SERVO1);
-#endif
-#if SERVO2
-  servo2.attach(SERVO2);
-#endif
-  setMeter(0);
+  setMeter(0.5);
 }
 
 void setMeter(float f) {
@@ -455,7 +444,7 @@ void setMeter(float f) {
   setMeter1(f);
 #endif
 #ifdef SERVO2
-  setMeter2(f);
+  setMeter2(1-f);
 #endif
 }
 
@@ -463,9 +452,13 @@ void setMeter(float f) {
 void setMeter1(float f) {
   if (f < 0) f = 0.;
   if (f > 1.) f = 1.;
-  const int MIN = 78;     // Angle 0 .. 180
-  const int MAX = 160;
+  const int MIN = 68;     // Angle 0 .. 180
+  const int MAX = 155;
   unsigned dial = f * (MAX - MIN) + MIN;
+  if (!servo1.attached()) {
+      servo1.attach(SERVO1);
+      delay(200);
+  }
   servo1.write(dial);
   Serial.print("Left Servo set to "); Serial.print(dial); Serial.print(" ("); Serial.print(f); Serial.println(")");
 }
@@ -476,8 +469,12 @@ void setMeter2(float f) {
   if (f < 0) f = 0.;
   if (f > 1.) f = 1.;
   const int MIN = 27;     // Angle 0 .. 180
-  const int MAX = 115;
+  const int MAX = 110;
   unsigned dial = f * (MAX - MIN) + MIN;
+  if (!servo2.attached()) {
+      servo2.attach(SERVO2);
+      delay(200);
+  }
   servo2.write(dial);
   Serial.print("Right Servo set to "); Serial.print(dial); Serial.print(" ("); Serial.print(f); Serial.println(")");
 }
@@ -485,27 +482,39 @@ void setMeter2(float f) {
 
 
 
-int i = 0, s = 1;
 unsigned long last_attempt_met = 0;
 unsigned long last_attempt_tfl = 0;
 
 void loop() {
   ArduinoOTA.handle();
 
-  if (millis() - last_attempt_tfl > repeat) {
+  if (millis() - last_attempt_tfl > repeat || last_attempt_tfl == 0) {
     int successTFL = getTFL();
     Serial.print("TFL ");
     Serial.println(successTFL);
     last_attempt_tfl = millis();
   };
-  if (millis() - last_attempt_met > repeat) {
+  if (millis() - last_attempt_tfl > servo_timout && servo1.attached())
+    servo1.detach();
+    
+  if (millis() - last_attempt_met > repeat || last_attempt_met == 0) {
     int successMET = getMET();
     Serial.print("MET ");
     Serial.println(successMET);
     last_attempt_met = millis();
   };
+  if (millis() - last_attempt_met > servo_timout && servo2.attached())
+    servo2.detach();
 
+  // Once we're running for over an hour - we assume playtime is
+  // over; and slow down the update cycles. Humans are known to
+  // have ficlke attention.
+  //
+  if (repeat < slow_repeat && millis() > 15 * 60 * 3600)
+    repeat = slow_repeat;
+    
 #if 0
+  static int i = 0, s = 1;
   setMeter(i / 100.);
   i += s;
   if (i >= 100) {
