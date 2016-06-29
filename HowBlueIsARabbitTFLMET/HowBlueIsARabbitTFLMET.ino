@@ -72,6 +72,22 @@ void setup() {
   //clean FS, for testing
   //SPIFFS.format();
 
+#ifdef CALIBRATE
+  Serial.println("Start calibration loop (20 times x 15 seconds)");
+  for(int i = 0; i < 20; i++) {
+    Serial.println("Moving meters to '0' and pausing 5 seconds");
+    setMeter1(0); setMeter2(0);
+    delay(5000);
+    Serial.println("Moving meters to '0.5' and pausing 5 seconds");
+    setMeter1(0.5); setMeter2(0.5);
+    delay(5000);
+    Serial.println("Moving meters to '1' and pausing 5 seconds");
+    setMeter1(1); setMeter2(1);
+    delay(5000);    
+  }
+  Serial.println("Send calibration loop");
+#endif
+
   //read configuration from FS json
   if (!SPIFFS.begin()) {
     Serial.println("failed to mount FS - wiping it and then rebooting.");
